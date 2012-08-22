@@ -33,7 +33,7 @@ def tokenize(email)
 end
 
 def train(email, label)
-    words = tokenize email
+    words = tokenize(email)
     
     words.each do |word|
         @word_counts[label][word] ||= 0
@@ -79,15 +79,32 @@ def build_spammicity_hash
     end
 end
 
+def index_of_highest(scores)
+    high_index, highest = 0, 0
+
+    scores.each_index do |index|
+        if scores[index][:score] > highest
+            highest = scores[index][:score]
+            high_index = index
+        end
+    end
+
+    high_index
+end
+
 def get_interesting_words(words)
-    seen, interesting_words = {}, []
+    seen = {}
+    interesting_words = []
 
     interest_scores = words.map do |word|
-        return {:word => word, :prob => 0, :score => 0} if seen[word]
-        seen[word] = true
-        prob = @spammicity[word] || 0.4
-        score = prob > 0 ? (prob - 0.5).abs : 0
-        {:word => word, :prob => prob, :score => score}
+        if seen[word]
+            {:word => word, :prob => 0.0, :score => 0.0} if seen[word]
+        else
+            seen[word] = true
+            prob = @spammicity[word] || 0.4
+            score = prob > 0.0 ? (prob - 0.5).abs : 0.0
+            {:word => word, :prob => prob, :score => score}
+        end
     end
 
     15.times do
@@ -119,10 +136,21 @@ def classify(email)
     score > 0.9 ? :spam : :ham
 end
 
-def initialize
-    spam_files = load_files 'spam'
-    ham_files = load_files 'easy_ham'
+def init
+    spam_files = load_files('spam')
+    ham_files = load_files('easy_ham')
     spam_files.each {|file| train file, :spam}
     ham_files.each {|file| train file, :ham}
     build_spammicity_hash
 end
+
+init
+
+easy_ham_files = load_files('hard_ham')
+misses = 0
+ham_classifications = easy_ham_files.each do |email|
+    classification = classify(email)
+    misses += 1 if classification == :spam
+end
+
+puts misses
