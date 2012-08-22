@@ -1,4 +1,4 @@
-Dir.chdir File.dirname(__FILE__) 
+# Initialize data structures
 @word_counts = {
     :spam => {},
     :ham => {}
@@ -11,12 +11,8 @@ Dir.chdir File.dirname(__FILE__)
 
 @spammicity = {}
 
-@spam_hash = {}
-@spam_count = 0.0
-
-@ham_hahs = {}
-@ham_count = 0.0
-
+# load the files from the specified director into an array
+# and return the array.
 def load_files(dir)
     files = []
     d = Dir.open(Dir.pwd + '/' + dir)
@@ -28,10 +24,12 @@ def load_files(dir)
     files
 end
 
+# generate the words array from the given email
 def tokenize(email)
     words = email.split(/[\s\n;".,;:()\[\]\\]/)
 end
 
+# populate the count data structures for each word in the given email
 def train(email, label)
     words = tokenize(email)
     
@@ -43,6 +41,7 @@ def train(email, label)
     @label_totals[label] += 1
 end
 
+# calculate the spammicity of the given word
 def calc_spammicity(word)
     spam_count = @word_counts[:spam][word] || 0.0
     ham_count = @word_counts[:ham][word] || 0.0
@@ -70,6 +69,8 @@ def calc_spammicity(word)
     end
 end
 
+# populate the spammicity hash with the spammicity of each word
+# in the data structures
 def build_spammicity_hash 
     @word_counts[:spam].each do |word, count|
         @spammicity[word] ||= calc_spammicity(word)
@@ -79,6 +80,7 @@ def build_spammicity_hash
     end
 end
 
+# find the index of the highest value in the scores array
 def index_of_highest(scores)
     high_index, highest = 0, 0
 
@@ -92,6 +94,9 @@ def index_of_highest(scores)
     high_index
 end
 
+# get an array of the 15 most interesting words
+# interestingness is ranked by spammicity probablity
+# farthest from a neutral 0.5
 def get_interesting_words(words)
     seen = {}
     interesting_words = []
@@ -120,6 +125,7 @@ def get_interesting_words(words)
     interesting_words
 end
 
+# classify the given email as spam or ham
 def classify(email)
     words = tokenize(email)
     interesting = get_interesting_words(words)
@@ -136,9 +142,12 @@ def classify(email)
     score > 0.9 ? :spam : :ham
 end
 
+# initialize the data structures
 def init
     spam_files = load_files('spam')
     ham_files = load_files('easy_ham')
+    ham_files.concat(load_files('hard_ham'))
+
     spam_files.each {|file| train file, :spam}
     ham_files.each {|file| train file, :ham}
     build_spammicity_hash
@@ -146,11 +155,30 @@ end
 
 init
 
-easy_ham_files = load_files('hard_ham')
-misses = 0
-ham_classifications = easy_ham_files.each do |email|
-    classification = classify(email)
-    misses += 1 if classification == :spam
+# calculate the accuracy stats for the given files
+# with the expected label
+def stats_for(files, expected_label)
+    misses = 0.0
+    classifications = files.each do |email|
+        classification = classify(email)
+        misses += 1 if classification != expected_label
+    end
+    [misses, misses/files.length]
 end
 
-puts misses
+# print the stats for the corpus test data
+def stats
+    easy_ham_files = load_files('easy_ham')
+    hard_ham_files = load_files('hard_ham')
+    spam_files = load_files('spam')
+
+    easy_stats = stats_for(easy_ham_files, :ham)
+    hard_stats = stats_for(hard_ham_files, :ham)
+    spam_stats = stats_for(spam_files, :spam)
+
+    puts "easy ham: #{easy_stats[0]} misses at #{easy_stats[1]}%"
+    puts "hard ham: #{hard_stats[0]} misses at #{hard_stats[1]}%"
+    puts "spam: #{spam_stats[0]} misses at #{spam_stats[1]}%"
+end
+
+stats
