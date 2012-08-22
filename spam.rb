@@ -9,7 +9,7 @@ Dir.chdir File.dirname(__FILE__)
     :ham => 0.0
 }
 
-@word_spammicity = {}
+@spammicity = {}
 
 @spam_hash = {}
 @spam_count = 0.0
@@ -72,23 +72,57 @@ end
 
 def build_spammicity_hash 
     @word_counts[:spam].each do |word, count|
-        @word_spammicity[word] ||= calc_spammicity(word)
+        @spammicity[word] ||= calc_spammicity(word)
     end
     @word_counts[:ham].each do |word, count|
-        @word_spammicity[word] ||= calc_spammicity(word)
+        @spammicity[word] ||= calc_spammicity(word)
     end
+end
+
+def get_interesting_words(words)
+    seen, interesting_words = {}, []
+
+    interest_scores = words.map do |word|
+        return {:word => word, :prob => 0, :score => 0} if seen[word]
+        seen[word] = true
+        prob = @spammicity[word] || 0.4
+        score = prob > 0 ? (prob - 0.5).abs : 0
+        {:word => word, :prob => prob, :score => score}
+    end
+
+    15.times do
+        len = interest_scores.length
+        break unless len > 0
+        high_index = index_of_highest(interest_scores)
+        swap_holder = interest_scores[len-1]
+        interest_scores[len-1] = interest_scores[high_index]
+        interest_scores[high_index] = swap_holder
+        interesting_words.push(interest_scores.pop)
+    end
+
+    interesting_words
 end
 
 def classify(email)
+    words = tokenize(email)
+    interesting = get_interesting_words(words)
+    product, alt_product = 1, 1
 
+    interesting.each do |word|
+        if word[:prob] > 0
+            product *= word[:prob]
+            alt_product *= (1 - word[:prob])
+        end
+    end
+    score = product / (product + alt_product)
+
+    score > 0.9 ? :spam : :ham
 end
 
-spam_files = load_files 'spam'
-ham_files = load_files 'easy_ham'
-spam_files.each do |file|
-    train file, :spam
+def initialize
+    spam_files = load_files 'spam'
+    ham_files = load_files 'easy_ham'
+    spam_files.each {|file| train file, :spam}
+    ham_files.each {|file| train file, :ham}
+    build_spammicity_hash
 end
-ham_files.each do |file|
-    train file, :ham
-end
-build_spammicity_hash
